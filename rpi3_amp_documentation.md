@@ -365,19 +365,24 @@ git checkout -b rpi3-port
 ## Debugging Tools
 
 ### Hardware Debugging
-- **UART2 (GPIO 0/1):** FreeRTOS Debug Output
-- **UART1 (GPIO 14/15):** Linux Console
+
+**⚠️ WICHTIG: RPi3 hat NUR UART0 und UART1! (UART2-5 nur auf RPi4)**
+
+**AMP Setup - UART0 exklusiv für Bare-Metal:**
+- **UART0 (GPIO 14/15, ALT0):** Bare-Metal/FreeRTOS Debug Output
+- **Linux Console:** Deaktiviert (Debug über SSH)
 - **JTAG (optional):** OpenOCD für Core 3
 
 ### Software Debugging
 ```bash
-# Linux Seite
+# Linux Seite (über SSH)
 dmesg | grep -i uio
 ls -la /sys/class/uio/
 cat /proc/iomem | grep rtos
 cat /proc/iomem | grep shm
 
-# FreeRTOS/Bare-Metal Debug Output via UART2
+# Bare-Metal/FreeRTOS Debug Output via UART0
+# (USB-UART Adapter an GPIO 14/15)
 screen /dev/ttyUSB0 115200
 ```
 

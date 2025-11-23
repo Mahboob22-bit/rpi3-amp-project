@@ -239,9 +239,14 @@ maxcpus=3 mem=512M
 
 ### Debugging
 
-**UART Setup:**
-- GPIO 14/15 (UART0) - Linux console
-- GPIO 0/1 (UART2, ALT4) - Bare-metal debug (recommended to avoid conflict)
+**UART Setup (RPi3 has ONLY 2 UARTs!):**
+- GPIO 14/15 (UART0 PL011) - Primary UART, used by Linux console by default
+- GPIO 14/15 (UART1 Mini UART, ALT5) - Secondary UART (limited features)
+
+**⚠️ IMPORTANT FOR RPi3:**
+- **UART2-5 do NOT exist on BCM2837!** They only exist on RPi4 (BCM2711)
+- For AMP setup: Disable Linux console on UART0, use UART0 exclusively for bare-metal debug
+- Alternative: Use UART1 (mini UART) for bare-metal, but it's less stable
 
 **Linux Diagnostics:**
 ```bash

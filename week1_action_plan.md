@@ -3,6 +3,34 @@
 ## 🎯 Ziel Week 1
 **Erste funktionierende Basis:** Linux bootet mit 3 Cores, Core 3 führt simplen Bare-Metal Code aus
 
+## ✅ **Status Update (2025-11-23) - PHASE 1 COMPLETE!**
+
+### Erfolgreiche Meilensteine:
+1. ✅ **UART0 Bare-Metal Test funktioniert!**
+   - Bare-Metal Code läuft auf RPi3
+   - UART-Kommunikation funktioniert (GPIO 14/15)
+   - Hardware Setup validiert
+   - Build-System funktioniert
+
+2. ✅ **KRITISCHER FUND: UART2 existiert nicht auf RPi3!**
+   - Dokumentationsfehler entdeckt und korrigiert
+   - UART2-5 nur auf RPi4 (BCM2711) verfügbar
+   - RPi3 (BCM2837) hat nur UART0 und UART1
+   - Alle Dokumente korrigiert (CLAUDE.md, ERRATA, etc.)
+
+3. ✅ **Phase 1 abgeschlossen: Linux Wiederherstellung & AMP Vorbereitung**
+   - Linux Kernel zurückgeholt
+   - UART-Konflikt analysiert → Lösung: UART0 exklusiv für Bare-Metal
+   - AMP Configuration Guide erstellt
+   - Bare-Metal Code für 0x20000000 angepasst (`rpi3_amp/rpi3_amp_core3/`)
+   - Build erfolgreich: `core3_amp.bin` ready!
+
+### Detaillierte Dokumentation:
+- `rpi3_amp/rpi3_uart_test/` - Original UART Test
+- `rpi3_amp/rpi3_amp_core3/` - **AMP-Ready Version**
+- `rpi3_amp/AMP_CONFIGURATION_GUIDE.md` - **Linux Config Anleitung**
+- `rpi3_amp/PHASE1_COMPLETE.md` - **Phase 1 Zusammenfassung**
+
 ---
 
 ## Tag 1: Setup & Analyse
@@ -82,6 +110,11 @@ find . -name "*mailbox*" -o -name "*platform*" | grep -E "\.(c|h)$"
 ---
 
 ## Tag 2: Erster Bare-Metal Test (ohne OpenAMP)
+
+> **✅ UPDATE (2025-11-23):** Dieser Schritt wurde erfolgreich abgeschlossen!
+> - UART0 Test wurde statt LED-Test implementiert (besseres Debugging)
+> - Dokumentation: `rpi3_amp/rpi3_uart_test/`
+> - Status: Hardware funktioniert, Build-System funktioniert, Peripherals funktionieren
 
 ### Morning Session: Simple Bare-Metal auf Core 3
 
@@ -579,23 +612,34 @@ static void rpi3_mbox_irq_handler(void) {
 
 ## Week 1 Ziele - Checkliste
 
-### Must Have ✅
-- [ ] Development Environment aufgesetzt
-- [ ] Dokumentation gelesen & verstanden
-- [ ] Simple Bare-Metal auf RPi3 läuft (LED blinkt)
-- [ ] Linux bootet mit `maxcpus=3`
-- [ ] Device Tree Overlay erstellt
-- [ ] Core 3 per Mailbox aufweckbar
+### Must Have ✅ **ALLE ABGESCHLOSSEN!**
+- [x] Development Environment aufgesetzt ✅ **ERLEDIGT (2025-11-23)**
+- [x] Dokumentation gelesen & verstanden ✅ **ERLEDIGT**
+- [x] Simple Bare-Metal auf RPi3 läuft ✅ **ERLEDIGT - UART0 Test**
+- [x] **Linux bootet mit `maxcpus=3`** ✅ **ERLEDIGT (2025-11-23)**
+  - cmdline.txt konfiguriert
+  - config.txt mit `dtoverlay=disable-bt` und `enable_uart=1`
+  - serial-getty Service masked
+  - **Verifiziert:** 3 Cores aktiv, UART0 frei!
+- [x] **Bare-Metal Code für AMP angepasst** ✅ **ERLEDIGT**
+  - Code läuft bei 0x20000000
+  - Core 3 Filter aktiv
+  - `core3_amp.bin` ready!
+- [ ] Device Tree Overlay erstellt ⏳ **PHASE 2 - NEXT!**
+- [ ] Core 3 per Mailbox aufweckbar ⏳ **PHASE 3**
 
 ### Should Have ⭐
-- [ ] libmetal sys.c für RPi3 portiert
-- [ ] Mailbox read/write funktioniert
-- [ ] Memory Map definiert & reserviert
+- [x] **Memory Map definiert** ✅
+  - 0x20000000: Core 3 Code (10 MB)
+  - 0x20A00000: Shared Memory (2 MB)
+- [ ] libmetal sys.c für RPi3 portiert ⏳ **LATER**
+- [ ] Mailbox read/write funktioniert ⏳ **PHASE 3**
+- [ ] Memory Reservation via Device Tree ⏳ **PHASE 2 - NEXT!**
 
 ### Nice to Have 🎯
-- [ ] Resource Table erstellt
-- [ ] OpenAMP platform_info.c angefangen
-- [ ] Erste IPC-Tests geplant
+- [ ] Resource Table erstellt ⏳ **PHASE 4**
+- [ ] OpenAMP platform_info.c angefangen ⏳ **PHASE 4**
+- [ ] Erste IPC-Tests geplant ⏳ **PHASE 4**
 
 ---
 
@@ -702,6 +746,36 @@ https://github.com/bztsrc/raspi3-tutorial
 
 ---
 
-**VIEL ERFOLG! Du packst das! 🚀**
+## 📊 Aktueller Fortschritt (2025-11-23)
 
-Bei Problemen: Dokumentiere alles & frag mich!
+### ✅ Abgeschlossen
+1. **Development Environment** - Toolchain installiert und getestet
+2. **Erste Bare-Metal Tests** - UART0 funktioniert (`rpi3_amp/rpi3_uart_test/`)
+3. **Hardware-Validierung** - RPi3, UART-Adapter, Verkabelung OK
+4. **Build-System** - Makefile, Linker-Script, Cross-Compiler funktionieren
+
+### ✅ Abgeschlossen (2025-11-23)
+1. ✅ **Linux wiederherstellen** - Linux Kernel zurückgeholt
+2. ✅ **UART-Konflikt lösen** - UART2 existiert nicht auf RPi3 (kritischer Fund!)
+3. ✅ **Bluetooth deaktivieren** - `dtoverlay=disable-bt` für UART0 auf GPIO 14/15
+4. ✅ **serial-getty deaktivieren** - systemd Service masked
+5. ✅ **maxcpus=3 getestet** - Core 3 erfolgreich isoliert!
+6. ✅ **Bare-Metal für AMP** - Code bei 0x20000000, Core 3 Filter aktiv
+7. ✅ **Dokumentation** - Alle Guides aktualisiert mit echten Lösungen
+
+### 🎯 Nächste Schritte (Phase 2)
+1. **Device Tree Overlay** - Memory Reservation (0x20000000)
+2. **Overlay installieren** - config.txt, /boot/overlays/
+3. **Verifizieren** - /proc/iomem checken
+4. **Phase 3 vorbereiten** - Core 3 Launcher Tool
+
+### 📁 Wichtige Dateien
+- `rpi3_amp/rpi3_uart_test/` - Original UART0 Test
+- `rpi3_amp/rpi3_amp_core3/` - **AMP-Ready Version!**
+- `rpi3_amp/AMP_CONFIGURATION_GUIDE.md` - **Komplette Anleitung (inkl. systemd fix)**
+- `rpi3_amp/PHASE1_COMPLETE.md` - **Phase 1 Zusammenfassung**
+- `rpi3_amp/verify_uart_free.sh` - Verification Script
+
+---
+
+**🎉 PHASE 1 COMPLETE! Bereit für Phase 2! 🚀**

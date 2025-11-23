@@ -168,34 +168,48 @@ mem=512M  // Linux nur bis 0x20000000
 
 ---
 
-## ⚠️ FEHLER #5: UART Pin Assignments
+## ⚠️ FEHLER #5: UART Pin Assignments - KRITISCHER FEHLER IN ORIGINALDOKU!
 
-### Das Problem
+### ❌ Das Problem - UART2 existiert NICHT auf RPi3!
 ```c
+// ❌ FALSCH - Diese Information ist nur für RPi4 gültig!
 // GPIO 0/1 für UART2
 #define UART2_TXD  0  // GPIO 0 = ALT4
 #define UART2_RXD  1  // GPIO 1 = ALT4
 ```
 
-### Besser prüfen!
-**RPi3 UART Mapping:**
-- **UART0 (PL011):** GPIO 14/15 (ALT0) ← Linux Console
-- **UART1 (Mini UART):** GPIO 14/15 (ALT5) ← Kann stören!
-- **UART2:** GPIO 0/1 (ALT4) ✅
-- **UART3:** GPIO 4/5 (ALT4)
-- **UART4:** GPIO 8/9 (ALT4)
-- **UART5:** GPIO 12/13 (ALT4)
+### ✅ KORREKT: RPi3 (BCM2837) UART Mapping
+**RPi3 hat NUR 2 UARTs:**
+- **UART0 (PL011):** GPIO 14/15 (ALT0) ← Vollwertiger UART, Linux Console
+- **UART1 (Mini UART):** GPIO 14/15 (ALT5) ← Reduzierte Features, instabil
 
-### Empfehlung
+**❌ UART2-5 EXISTIEREN NICHT auf BCM2837!**
+
+### ✅ KORREKT: RPi4 (BCM2711) UART Mapping
+**RPi4 hat 6 UARTs:**
+- **UART0 (PL011):** GPIO 14/15 (ALT0)
+- **UART1 (Mini UART):** GPIO 14/15 (ALT5)
+- **UART2:** GPIO 0/1 (ALT4) ← NUR auf RPi4!
+- **UART3:** GPIO 4/5 (ALT4) ← NUR auf RPi4!
+- **UART4:** GPIO 8/9 (ALT4) ← NUR auf RPi4!
+- **UART5:** GPIO 12/13 (ALT4) ← NUR auf RPi4!
+
+### Empfehlung für RPi3 AMP Setup
 ```c
-// OPTION 1: UART2 nutzen (GPIO 0/1)
-// ✅ Sicher, weit weg von Linux UART0
+// ✅ OPTION 1: UART0 exklusiv für Bare-Metal (EMPFOHLEN)
+// - Linux UART Console deaktivieren (cmdline.txt)
+// - Bare-Metal nutzt UART0 (GPIO 14/15, ALT0)
+// - Volle PL011 Features
+// - Linux Debug über SSH
 
-// OPTION 2: UART4 nutzen (GPIO 8/9)  
-// ✅ Auch gut, alternative Pins
+// ⚠️ OPTION 2: UART1 (Mini UART) für Bare-Metal
+// - Linux behält UART0
+// - Bare-Metal nutzt UART1 (GPIO 14/15, ALT5)
+// - Limitierte Features, abhängig von VPU Clock
+// - Instabil bei GPU-Last
 
-// ❌ NICHT: UART0 oder UART1 auf GPIO 14/15
-// → Konflikt mit Linux Console!
+// ❌ NICHT MÖGLICH: UART2-5 auf RPi3
+// → Diese UARTs existieren nur auf RPi4!
 ```
 
 ---
