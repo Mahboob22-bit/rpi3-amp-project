@@ -1,0 +1,85 @@
+# Build artifacts
+*.o
+*.elf
+*.img
+*.bin
+*.hex
+*.map
+*.lst
+*.d
+*.a
+*.so
+*.so.*
+
+# Compiled device tree files
+*.dtb
+*.dtbo
+
+# Build directories
+build/
+cmake-build-*/
+out/
+bin/
+obj/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+!toolchain-rpi3.cmake
+
+# Toolchain (too large for repo)
+arm-gnu-toolchain-*/
+arm-gnu-toolchain-*.tar.xz
+
+# Nested git repositories (managed independently)
+rpi3_amp/
+rpi4_ref/
+rpi4_rpmsg_ref/
+rpi3_tutorial_ref/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-*
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Core dumps
+core
+core.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Documentation build artifacts
+docs/_build/
+docs/.doctrees/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS-specific
+.Trash-*/
+.nfs*
