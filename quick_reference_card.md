@@ -2,13 +2,53 @@
 
 ## 🎯 Memory Map Übersicht
 
+### Visual Memory Layout
+
+```
+Physical Address Space (1 GB total):
+
+0x00000000 ┌─────────────────────────────────────┐
+           │                                     │
+           │        Linux RAM (512 MB)           │
+           │                                     │
+0x1FFFFFFF └─────────────────────────────────────┘
+
+0x20000000 ┌─────────────────────────────────────┐ ← AMP Reserved Start
+           │  AMP Reserved (12 MB):              │
+           │  • 0x20000000: Bare-Metal (10 MB)   │
+           │  • 0x20A00000: Shared Memory (2 MB) │
+0x20BFFFFF └─────────────────────────────────────┘
+
+0x20C00000 ┌─────────────────────────────────────┐
+           │                                     │
+           │    Linux RAM continued (~499 MB)    │
+           │                                     │
+0x3EFFFFFF └─────────────────────────────────────┘
+
+0x3F000000 ┌─────────────────────────────────────┐
+           │    BCM2837 Peripherals (16 MB)      │
+           │    (GPIO, UART, SPI, I2C, etc.)     │
+0x3FFFFFFF └─────────────────────────────────────┘
+
+0x40000000   ARM Local Peripherals (Mailboxes, IRQ)
+```
+
+**Key Facts:**
+- **0x20000000 = 512 MB offset** - Exactly in the middle of 1GB RAM
+- **Total RAM:** 1 GB (0x00000000 - 0x3FFFFFFF addressable space)
+- **Usable SDRAM:** ~1008 MB (0x00000000 - 0x3EFFFFFF)
+- **Peripherals:** Start at 0x3F000000 (safe distance from AMP region!)
+- **AMP Region:** 12 MB reserved, won't conflict with Linux or peripherals
+
+### Address Ranges Table
+
 ```
 RPi3 Physical Address Space:
 
 0x00000000 - 0x1FFFFFFF  |  512 MB  | Linux RAM
 0x20000000 - 0x209FFFFF  |   10 MB  | Bare-Metal Code/Data
 0x20A00000 - 0x20BFFFFF  |    2 MB  | Shared Memory (IPC)
-0x20C00000 - 0x3EFFFFFF  |  403 MB  | Linux RAM (cont.)
+0x20C00000 - 0x3EFFFFFF  |  499 MB  | Linux RAM (cont.)
 0x3F000000 - 0x3FFFFFFF  |   16 MB  | BCM2837 Peripherals
 0x40000000 - 0x40000FFF  |    4 KB  | ARM Local Peripherals
 ```
