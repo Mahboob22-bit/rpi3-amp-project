@@ -2,6 +2,7 @@
 
 **Datum:** 2025-11-24
 **Status:** ✅ **ERFOLGREICH ABGESCHLOSSEN**
+**SSH:** `ssh admin@rpi3-amp`
 
 ---
 
@@ -61,6 +62,10 @@ echo "dtoverlay=rpi3-amp-reserved-memory" | sudo tee -a /boot/firmware/config.tx
 ```bash
 sudo reboot
 ```
+
+**Workflow (WSL → RPi):**
+- SCP zum Übertragen: `scp file admin@rpi3-amp:~/`
+- SSH für Commands: `ssh admin@rpi3-amp "command"`
 
 ---
 
@@ -208,8 +213,9 @@ dtoverlay=rpi3-amp-reserved-memory   # ✅ Phase 2 NEU!
 2. **Bare-Metal Code vorbereiten**
    - Simple Test-Binary die:
      - UART Output sendet ("Core 3 is alive!")
-     - LED blinkt (GPIO 17)
+     - Counter hochzählt
      - In Endlosschleife läuft
+   - ✅ Code bereits vorhanden in `rpi3_amp/rpi3_amp_core3/main.c`
 
 3. **Testen**
    - Linux läuft auf Core 0-2
@@ -228,7 +234,7 @@ Linux (Core 0-2)                    Bare-Metal (Core 3)
 │ 1. Load binary   │──────────────▶│ @ 0x20000000     │
 │    to 0x20000000 │               │                  │
 │                  │               │ - UART output    │
-│ 2. Write mailbox │──────────────▶│ - LED blink      │
+│ 2. Write mailbox │──────────────▶│ - Counter        │
 │    @ 0x400000B0  │  (wake up!)   │ - Infinite loop  │
 │                  │               │                  │
 └──────────────────┘               └──────────────────┘
