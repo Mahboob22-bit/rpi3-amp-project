@@ -35,11 +35,19 @@ Makefile
 arm-gnu-toolchain-*/
 arm-gnu-toolchain-*.tar.xz
 
-# Nested git repositories (managed independently)
-rpi3_amp/
+# Reference repositories (too large, clone separately if needed)
 rpi4_ref/
 rpi4_rpmsg_ref/
 rpi3_tutorial_ref/
+
+# U-Boot full repository (we only track our custom files in u-boot/)
+u-boot-rpi3/
+
+# Build artifacts in rpi3_amp (but track source code!)
+rpi3_amp/*/build/
+rpi3_amp/*/*.o
+rpi3_amp/*/*.elf
+rpi3_amp/*/kernel8.img
 
 # IDE and editor files
 .vscode/

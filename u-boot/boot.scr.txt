@@ -1,0 +1,84 @@
+# RPi3 AMP Boot Script
+# Startet Core 3 mit Bare-Metal Code, dann Linux
+
+echo "=========================================="
+echo "*** RPi3 AMP Boot Sequence ***"
+echo "=========================================="
+
+# Memory Info
+echo "Memory Layout:"
+echo "  0x00000000 - Linux (512 MB)"
+echo "  0x20000000 - Core 3 Code (10 MB)"
+echo "  0x20A00000 - Shared Memory (2 MB)"
+
+# WICHTIG: Cache ausschalten für Core 3 Boot
+echo ""
+echo "Step 1: Disabling caches for clean Core 3 boot..."
+dcache off
+icache off
+
+# Core 3 Binary von Boot Partition laden
+echo ""
+echo "Step 2: Loading Core 3 binary to temp address..."
+fatload mmc 0:1 0x00100000 core3_amp.bin
+
+echo "Step 2b: Copying to final address 0x20000000..."
+# ${filesize} wird von fatload gesetzt
+cp.b 0x00100000 0x20000000 ${filesize}
+
+# Verifizieren dass Binary geladen wurde
+echo ""
+echo "Step 3: Verifying Core 3 code..."
+md.l 0x20000000 0x4
+
+# Cache flush - kritisch für ARM Local Mailbox Communication
+echo ""
+echo "Step 4: Flushing caches..."
+dcache flush
+
+# Core 3 starten
+echo ""
+echo "Step 5: Starting Core 3 at 0x20000000..."
+# Spin Table setzen - Core 3 springt zu dieser Adresse
+mw.q 0xF0 0x20000000
+
+# Memory Barriers - stellt sicher, dass der Write sichtbar ist
+echo "Step 5b: Ensuring memory visibility..."
+# dcache flush sorgt dafür, dass der Write zu 0xF0 im RAM ankommt
+dcache flush
+
+echo ""
+echo "Step 6: Core 3 should now be starting..."
+echo "         Check UART output for Core 3 messages!"
+echo ""
+
+# Kleine Pause damit Core 3 Zeit hat zu starten
+sleep 1
+
+# Jetzt Cache wieder einschalten für Linux
+echo "Step 7: Re-enabling caches for Linux..."
+dcache on
+icache on
+
+# Linux Kernel laden und booten
+echo ""
+echo "Step 8: Loading Linux kernel..."
+echo "=========================================="
+
+# Standard RPi3 Boot
+# Lade Kernel und DTB (kernel8.img.backup, weil kernel8.img jetzt U-Boot ist!)
+fatload mmc 0:1 ${kernel_addr_r} vmlinuz || fatload mmc 0:1 ${kernel_addr_r} kernel8.img.backup
+fatload mmc 0:1 ${fdt_addr} bcm2710-rpi-3-b.dtb
+
+# FDT modifizieren für maxcpus=3
+fdt addr ${fdt_addr}
+fdt resize 8192
+
+# Boot Linux mit Kernel Command Line
+setenv bootargs "console=ttyAMA0,115200 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait maxcpus=3 mem=512M iomem=relaxed"
+
+echo "Booting Linux on Core 0-2..."
+echo "Core 3 continues running bare-metal code"
+echo "=========================================="
+
+booti ${kernel_addr_r} - ${fdt_addr}
