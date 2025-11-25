@@ -20,6 +20,47 @@ This is a **Raspberry Pi 3 AMP (Asymmetric Multiprocessing) project** - a port o
        └──────────── OpenAMP/RPMsg ──────────────┘
 ```
 
+## Current Status (Last Updated: 2025-11-25)
+
+**✅ PHASE 3B COMPLETE - Core 3 Running!**
+
+```
+Status: WORKING ✅
+├── Phase 1: Planning & Setup               [DONE]
+├── Phase 2: Memory Reservation             [DONE]
+├── Phase 3A: Userspace Launcher            [FAILED - Cache Issues]
+├── Phase 3B: U-Boot Boot Method            [DONE - WORKING! 🎉]
+├── Phase 4: Simple IPC (Mailbox)           [NEXT]
+├── Phase 5: OpenAMP/RPMsg                  [PLANNED]
+└── Phase 6: FreeRTOS Integration           [PLANNED]
+```
+
+**What Works Now:**
+- Core 3 runs bare-metal code at 0x20000000 (via U-Boot boot)
+- Linux boots on Cores 0-2 (parallel execution)
+- Memory reservation enforced (512 MB Linux, 12 MB AMP)
+- UART output from Core 3 visible
+- SSH to Linux works
+
+**Boot Flow:**
+1. GPU loads U-Boot (kernel8.img)
+2. U-Boot loads Core 3 binary to 0x20000000
+3. U-Boot writes to ARM Spin Table (0xF0)
+4. Core 3 starts executing bare-metal code
+5. U-Boot loads Linux kernel (kernel8.img.backup)
+6. Linux boots on Cores 0-2
+
+**Key Files on SD Card:**
+- `/boot/firmware/kernel8.img` - U-Boot (637 KB)
+- `/boot/firmware/boot.scr` - U-Boot boot script (2.5 KB)
+- `/boot/firmware/core3_amp.bin` - Core 3 code (1.2 KB)
+- `/boot/firmware/kernel8.img.backup` - Original Linux kernel (9.3 MB)
+
+**Documentation:**
+- `PHASE3B_SUCCESS.md` - Complete Phase 3B report
+- `CURRENT_STATUS.md` - Quick start for next steps
+- This file (CLAUDE.md) - Project overview and guidelines
+
 ## Critical Hardware Differences: RPi3 vs RPi4
 
 Understanding these differences is essential for the port:
