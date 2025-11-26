@@ -1,0 +1,62 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * Device Tree Overlay for RPi3 AMP Project - Version 2
+ *
+ * Purpose: Reserve memory regions for Asymmetric Multiprocessing
+ * - Core 0-2: Run Linux (512 MB)
+ * - Core 3: Run Bare-Metal code at 0x20000000
+ *
+ * Memory Reservation:
+ * - 0x20000000-0x209FFFFF: Bare-Metal code/data (10 MB)
+ * - 0x20A00000-0x20BFFFFF: Shared memory for IPC (2 MB)
+ *
+ * NOTE: NO "no-map" flag - allows Linux /dev/mem access for loading binary!
+ *
+ * Usage:
+ *   1. Compile: dtc -@ -I dts -O dtb -o rpi3-amp-reserved-memory-v2.dtbo rpi3-amp-reserved-memory-v2.dtso
+ *   2. Install: sudo cp rpi3-amp-reserved-memory-v2.dtbo /boot/firmware/overlays/
+ *   3. Disable old overlay in /boot/firmware/config.txt
+ *   4. Enable:  Add "dtoverlay=rpi3-amp-reserved-memory-v2" to /boot/firmware/config.txt
+ *   5. Reboot
+ *   6. Verify: cat /proc/iomem | grep amp
+ */
+
+/ {
+    compatible = "brcm,bcm2837";
+
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            reserved-memory {
+                #address-cells = <1>;
+                #size-cells = <1>;
+                ranges;
+
+                /*
+                 * Bare-Metal Code Region (10 MB)
+                 * Address: 0x20000000 - 0x209FFFFF
+                 * Usage: Core 3 executable code, data, stack, heap
+                 * NOTE: reusable flag allows /dev/mem access
+                 */
+                amp_code@20000000 {
+                    compatible = "shared-dma-pool";
+                    reg = <0x20000000 0x00A00000>;  /* 10 MB */
+                    reusable;  /* Reserved but accessible via /dev/mem */
+                };
+
+                /*
+                 * Shared Memory Region (2 MB)
+                 * Address: 0x20A00000 - 0x20BFFFFF
+                 * Usage: OpenAMP/RPMsg communication between Linux and Core 3
+                 */
+                amp_shared@20A00000 {
+                    compatible = "shared-dma-pool";
+                    reg = <0x20A00000 0x00200000>;  /* 2 MB */
+                    reusable;  /* Reserved but accessible via /dev/mem */
+                };
+            };
+        };
+    };
+};

@@ -1,0 +1,40 @@
+# Build artifacts
+*.o
+*.elf
+*.bin
+*.img
+*.hex
+*.map
+*.lst
+*.d
+*.a
+
+# Compiled device tree files
+*.dtb
+*.dtbo
+
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Large reference PDFs (keep MD docs)
+*.pdf
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*~
+
+# OS-specific
+.DS_Store
+Thumbs.db

@@ -1,0 +1,31 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * Device Tree Overlay for RPi3 AMP Project - Version 3
+ *
+ * Simpler approach: Just mark as reserved, no special flags
+ * This reserves memory without blocking /dev/mem access
+ */
+
+/ {
+    compatible = "brcm,bcm2837";
+
+    fragment@0 {
+        target-path = "/reserved-memory";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            /* Bare-Metal Code Region (10 MB) */
+            amp_code@20000000 {
+                reg = <0x20000000 0x00A00000>;
+            };
+
+            /* Shared Memory Region (2 MB) */
+            amp_shared@20A00000 {
+                reg = <0x20A00000 0x00200000>;
+            };
+        };
+    };
+};
