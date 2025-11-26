@@ -2,7 +2,6 @@
 *.o
 *.elf
 *.img
-*.bin
 *.hex
 *.map
 *.lst
@@ -10,6 +9,11 @@
 *.a
 *.so
 *.so.*
+
+# Exception: Track compiled binaries in u-boot/ directory
+!u-boot/*.bin
+!u-boot/*.scr
+!rpi3_amp/*/core3_amp.bin
 
 # Compiled device tree files
 *.dtb
