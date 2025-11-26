@@ -20,7 +20,7 @@ This is a **Raspberry Pi 3 AMP (Asymmetric Multiprocessing) project** - a port o
        └──────────── OpenAMP/RPMsg ──────────────┘
 ```
 
-## Current Status (Last Updated: 2025-11-25)
+## Current Status (Last Updated: 2025-11-26)
 
 **✅ PHASE 3B COMPLETE - Core 3 Running!**
 
@@ -91,18 +91,29 @@ Understanding these differences is essential for the port:
 
 ```
 rpi3_amp_project/
-├── rpi4_ref/              # TImada's RPi4 FreeRTOS (reference)
-├── rpi4_rpmsg_ref/        # TImada's RPi4 OpenAMP/RPMsg (reference)
-│   ├── libmetal/          # Hardware abstraction layer
-│   ├── open-amp/          # OpenAMP framework
-│   └── samples/           # Example applications
-├── rpi3_tutorial_ref/     # Bare-metal RPi3 tutorials (reference)
-├── rpi3_amp/              # OUR MAIN PROJECT
-│   ├── test_bare_metal/   # Simple bare-metal tests
-│   ├── libmetal_rpi3/     # Ported libmetal for RPi3
-│   ├── open-amp_rpi3/     # Ported OpenAMP for RPi3
-│   └── dts/               # Device tree overlays
-└── arm-gnu-toolchain-.../  # Cross-compiler toolchain
+├── rpi4_ref/                  # TImada's RPi4 FreeRTOS (reference)
+├── rpi4_rpmsg_ref/            # TImada's RPi4 OpenAMP/RPMsg (reference)
+│   ├── libmetal/              # Hardware abstraction layer
+│   ├── open-amp/              # OpenAMP framework
+│   └── samples/               # Example applications
+├── rpi3_tutorial_ref/         # Bare-metal RPi3 tutorials (reference)
+├── rpi3_amp/                  # OUR MAIN PROJECT ✅
+│   ├── rpi3_amp_core3/        # Core 3 bare-metal code (WORKING!)
+│   │   ├── boot.S             # Assembly startup
+│   │   ├── main.c             # C code (UART, GPIO, etc.)
+│   │   ├── Makefile           # Build system
+│   │   └── core3_amp.bin      # Compiled binary
+│   ├── dts/                   # Device tree overlays
+│   └── README.md              # Project documentation
+├── u-boot/                    # U-Boot compiled files (ready to deploy)
+│   ├── u-boot.bin             # Compiled U-Boot binary (637 KB)
+│   ├── boot.scr               # Compiled boot script (2.5 KB)
+│   ├── boot.scr.txt           # Boot script source
+│   └── README.md              # Deployment guide
+├── u-boot-rpi3/               # U-Boot source code (if rebuild needed)
+│   ├── tools/mkimage          # Boot script compiler
+│   └── ...                    # Full U-Boot source tree
+└── arm-gnu-toolchain-.../     # Cross-compiler toolchain
 ```
 
 ## Build System
@@ -114,19 +125,30 @@ rpi3_amp_project/
 
 ### Common Build Commands
 
-**Bare-Metal Test (Simple Makefile):**
+**Core 3 Bare-Metal Code (Currently Working!):**
 ```bash
-cd rpi3_amp/test_bare_metal
-make
-# Produces kernel8.img
+cd rpi3_amp/rpi3_amp_core3
+make clean && make
+# Produces: core3_amp.bin (ready to deploy to SD card)
 ```
 
-**OpenAMP Project (CMake-based):**
+**U-Boot Boot Script (if modifications needed):**
 ```bash
-cd rpi3_amp
-mkdir build && cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=../toolchain-rpi3.cmake
-make VERBOSE=1
+cd u-boot-rpi3
+# Edit boot.scr.txt first, then compile:
+./tools/mkimage -A arm64 -O linux -T script -C none -d boot.scr.txt boot.scr
+# Copy to u-boot/ directory for deployment
+cp boot.scr ../u-boot/
+```
+
+**U-Boot Full Rebuild (rarely needed):**
+```bash
+cd u-boot-rpi3
+make CROSS_COMPILE=aarch64-none-elf- rpi_3_defconfig
+make CROSS_COMPILE=aarch64-none-elf- -j4
+# Produces: u-boot.bin
+# Copy to u-boot/ directory
+cp u-boot.bin ../u-boot/
 ```
 
 **Device Tree Compilation:**
@@ -341,15 +363,45 @@ Located in project root:
 
 ## Next Steps for Development
 
+### Phase 4: Simple IPC (Current Goal)
+
+**Recommended approach - Start Simple:**
+
+1. **Shared Memory Communication (Easiest - Start Here!)**
+   - Modify `rpi3_amp_core3/main.c` to write test pattern to 0x20A00000
+   - Write Linux userspace program to read via `/dev/mem`
+   - Verify data integrity without interrupts
+   - Code example:
+   ```c
+   // Core 3: Write to shared memory
+   volatile uint32_t *shared = (volatile uint32_t *)0x20A00000;
+   shared[0] = 0xDEADBEEF;
+   ```
+
+2. **Mailbox-Based IPC (Medium Complexity)**
+   - Use ARM Local Mailboxes at 0x40000000
+   - Core 3 waits for messages in loop
+   - Linux sends commands via mailbox write
+   - Add interrupt handling on Core 3
+
+3. **OpenAMP/RPMsg (Final Goal - Complex)**
+   - Port libmetal platform layer for RPi3
+   - Port OpenAMP platform info
+   - Implement full remoteproc/rpmsg framework
+   - Similar to TImada's RPi4 implementation
+
+### General Development Guidelines
+
 When starting work:
 1. Ensure cross-compiler is in PATH
 2. Review `ERRATA_CRITICAL_FIXES.md` for known issues
-3. Start with simple bare-metal test before OpenAMP integration
-4. Use external LED (GPIO 17) for initial testing
-5. Set up UART debugging early
+3. Review `CURRENT_STATUS.md` for current status and quick commands
+4. Test incrementally - don't skip steps!
+5. Use UART debugging liberally
 
 When debugging:
 1. Always check peripheral base addresses (0x3F000000 for RPi3)
 2. Verify memory reservation in both DT and cmdline
 3. Use UART output liberally for bare-metal debugging
 4. Check mailbox addresses carefully (ARM Local vs GPU Property)
+5. Remember: Cache coherency is CRITICAL on RPi3!
