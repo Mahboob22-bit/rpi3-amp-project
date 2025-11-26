@@ -94,6 +94,8 @@ rpi3_amp_project/
 - Raspberry Pi OS Lite (64-bit)
 - USB-UART adapter for debugging
 - ARM GNU Toolchain 13.2.rel1 (`aarch64-none-elf-gcc`)
+  - Download: https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
+  - Version: `arm-gnu-toolchain-13.2.Rel1-x86_64-aarch64-none-elf.tar.xz`
 
 ### Installation
 
