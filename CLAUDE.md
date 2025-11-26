@@ -22,7 +22,7 @@ This is a **Raspberry Pi 3 AMP (Asymmetric Multiprocessing) project** - a port o
 
 ## Current Status (Last Updated: 2025-11-26)
 
-**✅ PHASE 3B COMPLETE - Core 3 Running!**
+**✅ PHASE 4 IN PROGRESS - Shared Memory IPC Working!**
 
 ```
 Status: WORKING ✅
@@ -30,17 +30,24 @@ Status: WORKING ✅
 ├── Phase 2: Memory Reservation             [DONE]
 ├── Phase 3A: Userspace Launcher            [FAILED - Cache Issues]
 ├── Phase 3B: U-Boot Boot Method            [DONE - WORKING! 🎉]
-├── Phase 4: Simple IPC (Mailbox)           [NEXT]
+├── Phase 4: Simple IPC (Shared Memory)     [IN PROGRESS ✅]
+│   ├── Shared Memory Status Structure      [DONE]
+│   ├── Linux Reader Tool                   [DONE]
+│   └── Mailbox IPC                         [NEXT]
 ├── Phase 5: OpenAMP/RPMsg                  [PLANNED]
 └── Phase 6: FreeRTOS Integration           [PLANNED]
 ```
 
 **What Works Now:**
-- Core 3 runs bare-metal code at 0x20000000 (via U-Boot boot)
+- Core 3 runs **modular bare-metal firmware** at 0x20000000
+- **Shared Memory IPC** at 0x20A00000 (Linux can read Core 3 status!)
+- **Real timestamps** via System Timer (1 MHz)
+- **Periodic heartbeat** every 5 seconds
 - Linux boots on Cores 0-2 (parallel execution)
 - Memory reservation enforced (512 MB Linux, 12 MB AMP)
-- UART output from Core 3 visible
+- UART output from Core 3 visible with ASCII banner
 - SSH to Linux works
+- **SSH deployment** workflow (no SD card swap needed!)
 
 **Boot Flow:**
 1. GPU loads U-Boot (kernel8.img)
@@ -53,8 +60,11 @@ Status: WORKING ✅
 **Key Files on SD Card:**
 - `/boot/firmware/kernel8.img` - U-Boot (637 KB)
 - `/boot/firmware/boot.scr` - U-Boot boot script (2.5 KB)
-- `/boot/firmware/core3_amp.bin` - Core 3 code (1.2 KB)
+- `/boot/firmware/core3_amp.bin` - Core 3 firmware (~12 KB)
 - `/boot/firmware/kernel8.img.backup` - Original Linux kernel (9.3 MB)
+
+**Linux Tools (on RPi):**
+- `/usr/local/bin/read_shared_mem` - Read Core 3 status from shared memory
 
 **Documentation:**
 - `PHASE3B_SUCCESS.md` - Complete Phase 3B report
@@ -98,11 +108,20 @@ rpi3_amp_project/
 │   └── samples/               # Example applications
 ├── rpi3_tutorial_ref/         # Bare-metal RPi3 tutorials (reference)
 ├── rpi3_amp/                  # OUR MAIN PROJECT ✅
-│   ├── rpi3_amp_core3/        # Core 3 bare-metal code (WORKING!)
+│   ├── rpi3_amp_core3/        # Core 3 bare-metal firmware (MODULAR!)
 │   │   ├── boot.S             # Assembly startup
-│   │   ├── main.c             # C code (UART, GPIO, etc.)
-│   │   ├── Makefile           # Build system
-│   │   └── core3_amp.bin      # Compiled binary
+│   │   ├── link.ld            # Linker script (0x20000000)
+│   │   ├── common.h           # Hardware addresses, types
+│   │   ├── uart.h / uart.c    # UART0 driver with printf
+│   │   ├── timer.h / timer.c  # System Timer (timestamps)
+│   │   ├── memory.h / memory.c # Shared memory & memtest
+│   │   ├── cpu_info.h / .c    # CPU info (currently disabled)
+│   │   ├── main.c             # Main program with heartbeat
+│   │   ├── Makefile           # Build + SSH deploy
+│   │   └── core3_amp.bin      # Compiled binary (~12 KB)
+│   ├── linux_tools/           # Linux-side tools
+│   │   ├── read_shared_mem.c  # Shared memory reader
+│   │   └── Makefile           # Build + deploy
 │   ├── dts/                   # Device tree overlays
 │   └── README.md              # Project documentation
 ├── u-boot/                    # U-Boot compiled files (ready to deploy)
@@ -125,11 +144,22 @@ rpi3_amp_project/
 
 ### Common Build Commands
 
-**Core 3 Bare-Metal Code (Currently Working!):**
+**Core 3 Bare-Metal Firmware (Modular Build):**
 ```bash
 cd rpi3_amp/rpi3_amp_core3
-make clean && make
-# Produces: core3_amp.bin (ready to deploy to SD card)
+make clean && make        # Build firmware
+make deploy               # Deploy via SSH to RPi3
+make deploy-reboot        # Deploy and reboot RPi3
+make help                 # Show all targets
+# Produces: core3_amp.bin (~12 KB)
+```
+
+**Linux Tools (for reading shared memory):**
+```bash
+cd rpi3_amp/linux_tools
+make deploy               # Build on RPi3 and install
+# Then on RPi3: sudo read_shared_mem
+# Or watch mode: sudo read_shared_mem -w
 ```
 
 **U-Boot Boot Script (if modifications needed):**

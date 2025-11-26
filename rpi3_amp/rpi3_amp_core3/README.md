@@ -1,17 +1,52 @@
-# RPi3 AMP - Core 3 Bare-Metal Application
+# RPi3 AMP - Core 3 Bare-Metal Firmware
 
 ## Übersicht
 
-Dies ist die **AMP-ready Version** des UART-Tests, speziell für **Core 3** in einer Asymmetric Multiprocessing (AMP) Konfiguration.
+Dies ist die **modulare Bare-Metal Firmware** für Core 3 in einer Asymmetric Multiprocessing (AMP) Konfiguration auf dem Raspberry Pi 3.
 
-### Was ist anders als beim normalen UART-Test?
+**Status:** ✅ **WORKING** - Shared Memory IPC funktioniert!
 
-| Eigenschaft | Normal (kernel8.img) | AMP (core3_amp.bin) |
-|-------------|---------------------|---------------------|
-| **Load Address** | 0x80000 | **0x20000000** |
-| **Boot Methode** | GPU lädt als Kernel | **Linux lädt in Reserved Memory** |
-| **CPU Filter** | Core 0 | **Core 3 only** |
-| **Zweck** | Standalone Test | **Parallel zu Linux** |
+### Architektur
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    RPi3 AMP System                          │
+├─────────────┬─────────────┬─────────────┬───────────────────┤
+│   Core 0    │   Core 1    │   Core 2    │      Core 3       │
+│   Linux     │   Linux     │   Linux     │   Bare-Metal FW   │
+├─────────────┴─────────────┴─────────────┴───────────────────┤
+│                  Shared Memory @ 0x20A00000                 │
+│                    (Linux ↔ Core 3 IPC)                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Dateistruktur (Modular)
+
+```
+rpi3_amp_core3/
+├── boot.S              # Assembly Startup (Core 3 Filter)
+├── link.ld             # Linker Script (Load @ 0x20000000)
+├── common.h            # Hardware-Adressen, Typen, Makros
+├── uart.h / uart.c     # UART0 Treiber mit printf()
+├── timer.h / timer.c   # System Timer (echte Zeitstempel)
+├── memory.h / memory.c # Shared Memory & Memory Tests
+├── cpu_info.h / .c     # CPU Info (derzeit deaktiviert)
+├── main.c              # Hauptprogramm mit Heartbeat
+├── Makefile            # Build + SSH Deploy
+└── core3_amp.bin       # Kompilierte Firmware (~12 KB)
+```
+
+### Module
+
+| Modul | Beschreibung |
+|-------|--------------|
+| **common.h** | Alle Hardware-Adressen (0x3F000000), Typen (uint32_t, etc.), Memory Map |
+| **uart** | UART0 auf GPIO 14/15, printf mit %d/%x/%s Support |
+| **timer** | System Timer @ 1 MHz, Zeitstempel, Delays |
+| **memory** | Shared Memory Status-Struktur, Memory Tests |
+| **main** | Initialisierung, Heartbeat-Loop |
 
 ---
 
@@ -19,256 +54,225 @@ Dies ist die **AMP-ready Version** des UART-Tests, speziell für **Core 3** in e
 
 ```
 0x00000000 - 0x1FFFFFFF  |  512 MB  | Linux (Cores 0-2)
-0x20000000 - 0x209FFFFF  |   10 MB  | ← CORE 3 CODE HIER!
+0x20000000 - 0x209FFFFF  |   10 MB  | ← CORE 3 FIRMWARE HIER!
 0x20A00000 - 0x20BFFFFF  |    2 MB  | Shared Memory (IPC)
 0x3F000000 - 0x3FFFFFFF  |   16 MB  | BCM2837 Peripherals
 0x40000000 - 0x40000FFF  |    4 KB  | ARM Local (Mailboxes)
 ```
 
-**Dieser Code läuft bei:** `0x20000000`
+### Shared Memory Layout (0x20A00000)
 
----
-
-## 🔨 Build
-
-```bash
-make clean
-make
-
-# Output:
-# - kernel8.elf  (ELF mit Debug-Symbolen)
-# - kernel8.img  (Raw binary)
-# - core3_amp.bin (Kopie für AMP-Nutzung)
 ```
-
-### Build verifizieren
-
-```bash
-# Check Load Address
-aarch64-none-elf-objdump -h kernel8.elf | grep .text
-# Erwartung: VMA = 0000000020000000
-
-# Check Größe
-ls -lh core3_amp.bin
-# Sollte < 1 MB sein (haben 10 MB reserviert)
+Offset  | Größe  | Beschreibung
+--------|--------|------------------
+0x0000  | 4 KB   | Status-Struktur
+0x1000  | 4 KB   | IPC Daten
+0x2000  | 64 KB  | Memory Test Bereich
 ```
 
 ---
 
-## 🚀 Nutzung
+## 🔨 Build & Deploy
 
-### ⚠️ WICHTIG: Nicht als kernel8.img nutzen!
+### Voraussetzungen
 
-Dieser Code ist **NICHT** für direktes Booten gedacht!
-
-**FALSCH:**
 ```bash
-# ❌ NICHT kopieren nach /boot/kernel8.img
-sudo cp core3_amp.bin /media/$USER/boot/kernel8.img
-# → Das würde Linux ersetzen!
+# Cross-Compiler in PATH:
+export PATH=$PATH:~/rpi3_amp_project/arm-gnu-toolchain-13.2.Rel1-x86_64-aarch64-none-elf/bin
 ```
 
-**RICHTIG:**
-
-Dieser Code wird von einem **Linux User-Space Tool** geladen:
+### Build
 
 ```bash
-# 1. Linux bootet normal (kernel8.img = Linux Kernel)
-# 2. Linux reserviert Memory bei 0x20000000 (via Device Tree)
-# 3. Linux Tool lädt core3_amp.bin in 0x20000000
-# 4. Linux Tool weckt Core 3 auf (per Mailbox)
-# 5. Core 3 läuft diesen Code!
+make clean && make
+```
+
+**Output:**
+```
+╔════════════════════════════════════════════════════════════════╗
+║           BUILD SUCCESSFUL                                     ║
+╠════════════════════════════════════════════════════════════════╣
+║ Output: core3_amp.bin
+║ Size:   12K
+╚════════════════════════════════════════════════════════════════╝
+```
+
+### Deploy via SSH
+
+```bash
+make deploy              # Upload to RPi3
+make deploy-reboot       # Upload and reboot
+```
+
+### Alle Targets
+
+```bash
+make              # Build firmware
+make clean        # Remove build files
+make deploy       # Deploy via SSH
+make deploy-reboot # Deploy and reboot
+make disasm       # Create disassembly
+make size         # Show section sizes
+make help         # Show all targets
+```
+
+### Konfiguration
+
+```bash
+# Anderer Host:
+make deploy RPI_HOST=pi@192.168.1.100
+
+# Anderes Boot-Verzeichnis:
+make deploy RPI_BOOT_DIR=/boot
 ```
 
 ---
 
-## 📋 Dateien
+## 🧪 Features
 
-### boot.S
-- **Core-Filter:** Nur Core 3 läuft (Cores 0-2 halt)
-- **Stack:** Separate Stack für Core 3
-- **BSS:** Wird korrekt initialisiert
-
-**Wichtige Änderung:**
-```asm
-// Alter Code (standalone):
-cbz     x0, core0_start
-
-// Neuer Code (AMP):
-cmp     x0, #3
-bne     core_halt    // Nur Core 3!
+### 1. ASCII Banner
+```
+╔════════════════════════════════════════════════════════════╗
+║   ██████╗ ██████╗ ██╗██████╗      █████╗ ███╗   ███╗██████╗║
+║   ██╔══██╗██╔══██╗██║╚════██╗    ██╔══██╗████╗ ████║██╔══██║
+║   ██████╔╝██████╔╝██║ █████╔╝    ███████║██╔████╔██║██████╔║
+║   ...
+╚════════════════════════════════════════════════════════════╝
 ```
 
-### link.ld
-- **Load Address:** 0x20000000 (AMP reserved memory)
-- **Sections:** .text, .rodata, .data, .bss
-- **Größe:** Passt in 10 MB Reservation
-
-**Wichtige Änderung:**
-```ld
-// Alter Code:
-. = 0x80000;
-
-// Neuer Code:
-. = 0x20000000;
+### 2. Echte Zeitstempel
+```
+│ Time     : 00:05:23.456
+│ Uptime   : 5m 23s
 ```
 
-### main.c
-- **UART0:** GPIO 14/15 (exklusiv für Core 3)
-- **Output:** Identifiziert sich als "AMP Core 3"
-- **Peripherals:** BCM2837 (0x3F000000)
+### 3. Shared Memory Status
+Linux kann jederzeit den Core 3 Status lesen:
+```bash
+sudo read_shared_mem
+# Magic         : 0x52503341 ✓
+# State         : RUNNING
+# Heartbeat     : 42
+```
+
+### 4. Periodischer Heartbeat
+Alle 5 Sekunden wird Status auf UART ausgegeben und Shared Memory aktualisiert.
 
 ---
 
-## 🧪 Testing
+## 📋 Shared Memory Status Struktur
 
-### Phase 1: Standalone Test (Optional)
-
-Nur zum Testen ob der Code funktioniert:
-
-```bash
-# TEMPORÄR kernel8.img ersetzen
-sudo cp core3_amp.bin /media/$USER/boot/kernel8.img
-
-# Boot RPi3
-# UART sollte zeigen:
-# *** RPi3 AMP - Core 3 Bare-Metal ***
-# Running at: 0x20000000 (AMP Reserved)
-# ...
-
-# ⚠️ ABER: Core 3 wird beim Boot nicht gestartet!
-# → Code läuft nicht, weil GPU nur Core 0 startet
-```
-
-**Fazit:** Dieser Test funktioniert NICHT richtig, weil der GPU Bootloader nur Core 0 startet!
-
-### Phase 2: Mit Linux & Core Wakeup (Richtig!)
-
-**Voraussetzungen:**
-1. ✅ Linux bootet mit `maxcpus=3`
-2. ✅ Memory bei 0x20000000 reserviert (Device Tree)
-3. ✅ Linux UART Console deaktiviert
-
-**Dann:**
-```bash
-# Auf RPi3 (Linux läuft):
-# 1. core3_amp.bin auf Pi kopieren
-scp core3_amp.bin pi@raspberrypi.local:~
-
-# 2. Core 3 Launcher nutzen (später zu erstellen)
-sudo ./core3_launcher core3_amp.bin
-
-# 3. UART Monitor zeigt:
-# ========================================
-# *** RPi3 AMP - Core 3 Bare-Metal ***
-# ========================================
-# Running at: 0x20000000 (AMP Reserved)
-# Core 3 successfully started!
-# ========================================
-# Message #0 from Core 3
-# Message #1 from Core 3
-# ...
+```c
+typedef struct {
+    uint32_t magic;              // 0x52503341 ("RP3A")
+    uint32_t version;            // Firmware Version (1.0.0)
+    uint32_t core3_state;        // RUNNING, ERROR, etc.
+    uint32_t boot_count;         // Anzahl Boots
+    uint64_t boot_time;          // Boot-Zeitstempel
+    uint64_t uptime_ticks;       // Uptime in µs
+    uint32_t heartbeat_counter;  // Heartbeat Zähler
+    uint32_t heartbeat_interval_ms;
+    uint32_t memtest_status;     // 0=N/A, 1=PASS, 2=FAIL
+    uint32_t memtest_errors;
+    uint32_t memtest_bytes;
+    uint32_t messages_sent;      // IPC Statistik
+    uint32_t messages_received;
+    uint32_t reserved[8];
+    char debug_message[128];     // Debug String
+} shared_status_t;
 ```
 
 ---
 
-## 🔧 Next Steps
+## 🐛 Bekannte Issues
 
-Diese Bare-Metal App ist Phase 1 fertig. Nächste Schritte:
+### 1. CPU Info deaktiviert
+**Problem:** `cpu_info.c` verursacht Crash beim Zugriff auf EL1 Register (wir laufen in EL2).
 
-### Bereits erledigt:
-- ✅ Code läuft bei 0x20000000
-- ✅ Core 3 Filter aktiv
-- ✅ UART0 funktioniert
+**Workaround:** Modul deaktiviert im Makefile.
 
-### TODO:
-- [ ] Device Tree Overlay erstellen (Memory Reservation)
-- [ ] Linux `core3_launcher` Tool schreiben
-- [ ] Core 3 Wakeup per Mailbox testen
-- [ ] Shared Memory IPC vorbereiten
-- [ ] OpenAMP Integration
+**Fix (TODO):** Register-Zugriffe für EL2 anpassen.
+
+### 2. WFE verursacht Crash
+**Problem:** `wfe` (Wait For Event) Instruction verursacht Absturz.
+
+**Workaround:** Busy-wait Loop statt WFE:
+```c
+for (volatile int i = 0; i < 10000; i++) {
+    asm volatile("nop");
+}
+```
+
+**Fix (TODO):** Exception Handler implementieren oder Timer-basiertes Warten.
+
+### 3. Memory Test deaktiviert
+**Problem:** Memory Test verursachte Crash im ersten Boot.
+
+**Workaround:** Test deaktiviert.
+
+**Fix (TODO):** Cache-Kohärenz prüfen, Test reaktivieren.
+
+---
+
+## 🔧 Entwicklung
+
+### Neues Modul hinzufügen
+
+1. Header erstellen: `mymodule.h`
+2. Implementation: `mymodule.c`
+3. In `Makefile` zu `C_SRCS` hinzufügen
+4. In `main.c` includieren und nutzen
+
+### Printf Format Strings
+
+```c
+uart_printf("Dezimal: %d\n", 42);
+uart_printf("Unsigned: %u\n", 42);
+uart_printf("Hex: %x\n", 0xDEAD);    // Achtung: gibt 0x... aus
+uart_printf("String: %s\n", "Hello");
+```
+
+### Hex ohne "0x" Prefix
+```c
+uart_put_hex32(0x12345678);  // Gibt "0x12345678" aus
+uart_put_uint(42);           // Gibt "42" aus
+```
 
 ---
 
 ## 📊 Memory Usage
 
 ```bash
-# Check actual size:
-size kernel8.elf
+make size
 ```
 
-**Erwartung:**
+**Typische Ausgabe:**
 ```
    text    data     bss     dec     hex filename
-    844       0    4096    4940    134c kernel8.elf
+  10240       0    4096   14336    3800 kernel8.elf
 ```
 
-**Analysis:**
-- **text + rodata:** ~1 KB (Code & Konstanten)
+- **text:** ~10 KB (Code + Konstanten)
 - **bss:** 4 KB (Stack)
-- **Gesamt:** ~5 KB (haben 10 MB reserviert → viel Platz!)
-
----
-
-## 🐛 Debugging
-
-### Problem: Code läuft nicht
-
-**Check 1: Lädt Linux den Code?**
-```bash
-# Auf RPi3:
-sudo xxd /dev/mem | grep -A 10 20000000
-# Sollte Code-Bytes zeigen (nicht Nullen)
-```
-
-**Check 2: Ist Core 3 aktiv?**
-```bash
-# Check welche Cores laufen:
-cat /proc/cpuinfo | grep processor
-# Erwartung: 0, 1, 2 (nicht 3)
-
-# Core 3 ist isoliert, wird manuell gestartet
-```
-
-**Check 3: UART Verkabelung?**
-```bash
-# Siehe AMP_CONFIGURATION_GUIDE.md
-# GPIO 14 (TX) → UART Adapter RX
-# GPIO 15 (RX) → UART Adapter TX
-```
-
-### Problem: Core 3 startet nicht
-
-**Mögliche Ursachen:**
-1. Mailbox-Signal nicht gesendet
-2. Falsche Jump-Adresse
-3. Core 3 nicht aus WFE aufgewacht
-4. Code nicht korrekt geladen
-
-**Debug:**
-```bash
-# ARM Local Mailbox Status prüfen
-sudo devmem2 0x400000B0  # Core 3 Mailbox 3 SET
-sudo devmem2 0x400000F0  # Core 3 Mailbox 3 CLR
-```
+- **Gesamt:** ~14 KB (haben 10 MB reserviert!)
 
 ---
 
 ## 📚 Referenzen
 
 **Im Projekt:**
-- `../AMP_CONFIGURATION_GUIDE.md` - Linux Config für AMP
-- `../rpi3_uart_test/` - Original standalone Test
 - `../../CLAUDE.md` - Projekt-Übersicht
-- `../../ERRATA_CRITICAL_FIXES.md` - Bekannte Probleme
+- `../../CURRENT_STATUS.md` - Aktueller Status
+- `../../quick_reference_card.md` - Hardware-Adressen
+- `../linux_tools/` - Linux Reader Tool
 
 **Hardware:**
-- BCM2835 ARM Peripherals PDF
+- BCM2835 ARM Peripherals PDF (gilt auch für BCM2837)
 - BCM2836 QA7 (ARM Local) - Mailboxes!
 - ARM Cortex-A53 TRM
 
 ---
 
-**Version:** 1.0 - AMP Core 3 Ready
-**Datum:** 2025-11-23
-**Status:** ✅ Build erfolgreich, bereit für Core 3 Wakeup Tests
+**Version:** 1.0.0
+**Datum:** 2025-11-26
+**Status:** ✅ Working - Shared Memory IPC funktioniert!

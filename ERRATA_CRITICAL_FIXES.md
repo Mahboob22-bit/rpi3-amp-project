@@ -474,6 +474,141 @@ Test LED:
 
 ---
 
+---
+
+## ⚠️ FEHLER #7: WFE Instruction Crash (2025-11-26)
+
+### Das Problem
+```c
+// ❌ CRASH in bare-metal main loop!
+while (1) {
+    // ... heartbeat code ...
+    asm volatile("wfe");  // ← CRASH nach erstem Heartbeat!
+}
+```
+
+### Die Wahrheit
+- `wfe` (Wait For Event) braucht korrekt konfigurierte Exception Handler
+- Ohne Exception Handler führt jede Exception zum Systemabsturz
+- Core 3 läuft ohne MMU/Exception Setup → `wfe` ist gefährlich
+
+### Die Lösung
+```c
+// ✅ WORKAROUND: Busy-wait statt WFE
+while (1) {
+    // ... heartbeat code ...
+    
+    // Kurze Pause ohne WFE
+    for (volatile int i = 0; i < 10000; i++) {
+        asm volatile("nop");
+    }
+}
+```
+
+### Langfristige Lösung (TODO)
+- Exception Handler implementieren
+- Timer-basiertes Warten
+- FreeRTOS Integration (hat eigenes Task-Scheduling)
+
+---
+
+## ⚠️ FEHLER #8: EL2 Register Access Crash (2025-11-26)
+
+### Das Problem
+```c
+// ❌ CRASH bei Register-Zugriff!
+static inline uint32_t read_currentel(void) {
+    uint64_t val;
+    asm volatile("mrs %0, CurrentEL" : "=r"(val));  // OK
+    return (uint32_t)((val >> 2) & 0x3);
+}
+
+// ❌ Einige Register sind nicht von EL2 aus zugänglich
+asm volatile("mrs %0, some_el1_register" : "=r"(val));  // CRASH!
+```
+
+### Die Wahrheit
+- Core 3 läuft in **EL2** (Hypervisor Level), nicht EL1
+- Viele System-Register sind EL-spezifisch
+- Falsche Register-Zugriffe → Undefined Instruction Exception → Crash
+
+### Die Lösung
+```c
+// ✅ WORKAROUND: cpu_info.c deaktiviert im Makefile
+C_SRCS = \
+    main.c \
+    uart.c \
+    timer.c \
+    memory.c
+    # cpu_info.c ← DEAKTIVIERT
+```
+
+### Langfristige Lösung (TODO)
+- Register-Zugriffe für EL2 anpassen
+- Oder zu EL1 wechseln vor Main-Code
+
+---
+
+## ⚠️ FEHLER #9: Uninitialisierter Shared Memory (2025-11-26)
+
+### Das Problem
+```c
+// ❌ Boot Count zeigt Garbage-Wert!
+g_status->boot_count++;  // 0x55555555 + 1 = 0x55555556
+```
+
+### Die Wahrheit
+- Shared Memory ist beim Boot nicht initialisiert
+- RAM enthält zufällige Werte (oft 0x55555555)
+- Inkrementieren macht keinen Sinn
+
+### Die Lösung
+```c
+// ✅ Erst Memory auf 0 setzen!
+shared_status_t* shared_mem_init(void) {
+    g_status = (shared_status_t *)SHARED_STATUS_ADDR;
+    
+    // Erst alles auf 0 setzen
+    uint8_t *ptr = (uint8_t *)g_status;
+    for (uint32_t i = 0; i < sizeof(shared_status_t); i++) {
+        ptr[i] = 0;
+    }
+    
+    // Dann initialisieren
+    g_status->magic = FIRMWARE_MAGIC;
+    g_status->boot_count = 1;  // Nicht inkrementieren!
+    // ...
+}
+```
+
+---
+
+## ⚠️ FEHLER #10: Doppeltes "0x" in printf (2025-11-26)
+
+### Das Problem
+```c
+// ❌ Gibt "0x0x20000000" aus!
+uart_printf("Address: 0x%x\n", 0x20000000);
+```
+
+### Die Wahrheit
+- `uart_put_hex32()` gibt bereits "0x" Prefix aus
+- `%x` Format in printf ruft `uart_put_hex32()` auf
+- Ergebnis: doppeltes "0x"
+
+### Die Lösung
+```c
+// ✅ Option A: Kein "0x" im Format-String
+uart_printf("Address: %x\n", 0x20000000);  // Gibt "0x20000000"
+
+// ✅ Option B: Separater Aufruf
+uart_puts("Address: ");
+uart_put_hex32(0x20000000);
+uart_puts("\n");
+```
+
+---
+
 ## 🚀 LOS GEHT'S - Mit Korrekturen!
 
 **Start wieder bei Tag 1, aber mit:**

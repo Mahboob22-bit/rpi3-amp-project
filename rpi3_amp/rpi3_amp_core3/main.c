@@ -1,110 +1,172 @@
-// UART0 Test (GPIO 14/15 - Physical Pins 8/10)
-// Nutzt dieselben Pins wie Linux Console - einfacher zu testen!
+/**
+ * @file main.c
+ * @brief RPi3 AMP Core 3 Bare-Metal Firmware - Hauptprogramm
+ * 
+ * VEREINFACHTE VERSION - schrittweises Debugging
+ */
 
-#define PERIPHERAL_BASE   0x3F000000
-#define GPIO_BASE         (PERIPHERAL_BASE + 0x200000)
-#define UART0_BASE        (PERIPHERAL_BASE + 0x201000)  // UART0!
+#include "common.h"
+#include "uart.h"
+#include "timer.h"
+#include "memory.h"
 
-// GPIO Register
-#define GPFSEL1           ((volatile unsigned int*)(GPIO_BASE + 0x04))
-#define GPPUD             ((volatile unsigned int*)(GPIO_BASE + 0x94))
-#define GPPUDCLK0         ((volatile unsigned int*)(GPIO_BASE + 0x98))
+/* CPU Info vorerst deaktiviert - verursacht Crash */
+/* #include "cpu_info.h" */
 
-// UART0 Register
-#define UART0_DR          ((volatile unsigned int*)(UART0_BASE + 0x00))
-#define UART0_FR          ((volatile unsigned int*)(UART0_BASE + 0x18))
-#define UART0_IBRD        ((volatile unsigned int*)(UART0_BASE + 0x24))
-#define UART0_FBRD        ((volatile unsigned int*)(UART0_BASE + 0x28))
-#define UART0_LCRH        ((volatile unsigned int*)(UART0_BASE + 0x2C))
-#define UART0_CR          ((volatile unsigned int*)(UART0_BASE + 0x30))
-#define UART0_ICR         ((volatile unsigned int*)(UART0_BASE + 0x44))
+/*============================================================================
+ * Konfiguration
+ *============================================================================*/
 
-#define UART_FR_TXFF      (1 << 5)
+#define HEARTBEAT_INTERVAL_MS   5000    /* 5 Sekunden */
 
-void delay(unsigned int count) {
-    for (volatile unsigned int i = 0; i < count; i++) {
-        asm volatile("nop");
+/*============================================================================
+ * Einfache CPU-ID Funktion (sicher)
+ *============================================================================*/
+
+static uint32_t get_core_id(void) {
+    uint64_t mpidr;
+    asm volatile("mrs %0, mpidr_el1" : "=r"(mpidr));
+    return mpidr & 0x3;
+}
+
+/*============================================================================
+ * Banner
+ *============================================================================*/
+
+static void print_banner(void) {
+    uart_puts("\n");
+    uart_puts("╔════════════════════════════════════════════════════════════╗\n");
+    uart_puts("║                                                            ║\n");
+    uart_puts("║   ██████╗ ██████╗ ██╗██████╗      █████╗ ███╗   ███╗██████╗║\n");
+    uart_puts("║   ██╔══██╗██╔══██╗██║╚════██╗    ██╔══██╗████╗ ████║██╔══██║\n");
+    uart_puts("║   ██████╔╝██████╔╝██║ █████╔╝    ███████║██╔████╔██║██████╔║\n");
+    uart_puts("║   ██╔══██╗██╔═══╝ ██║ ╚═══██╗    ██╔══██║██║╚██╔╝██║██╔═══╝║\n");
+    uart_puts("║   ██║  ██║██║     ██║██████╔╝    ██║  ██║██║ ╚═╝ ██║██║    ║\n");
+    uart_puts("║   ╚═╝  ╚═╝╚═╝     ╚═╝╚═════╝     ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝    ║\n");
+    uart_puts("║                                                            ║\n");
+    uart_puts("║        Asymmetric Multiprocessing - Core 3 Firmware        ║\n");
+    uart_puts("║                                                            ║\n");
+    uart_puts("╚════════════════════════════════════════════════════════════╝\n");
+    uart_puts("\n");
+}
+
+/*============================================================================
+ * Heartbeat
+ *============================================================================*/
+
+static void print_heartbeat(uint32_t count) {
+    char timestamp[16];
+    char uptime[24];
+    timer_format_timestamp(timestamp, 0);
+    timer_format_uptime(uptime, timer_get_seconds());
+    
+    uart_puts("\n");
+    uart_puts("┌──────────────────────────────────────────┐\n");
+    uart_printf("│ HEARTBEAT #%u\n", count);
+    uart_puts("├──────────────────────────────────────────┤\n");
+    uart_printf("│ Time     : %s\n", timestamp);
+    uart_printf("│ Uptime   : %s\n", uptime);
+    
+    shared_status_t *status = shared_mem_get_status();
+    if (status) {
+        uart_printf("│ HB Count : %u\n", status->heartbeat_counter);
+        uart_puts("│ Magic    : ");
+        uart_put_hex32(status->magic);
+        uart_puts("\n");
     }
+    
+    uart_puts("└──────────────────────────────────────────┘\n");
 }
 
-void uart0_init(void) {
-    unsigned int ra;
-
-    // 1. UART0 disable
-    *UART0_CR = 0;
-
-    // 2. GPIO 14 und 15 als UART0 (ALT0)
-    ra = *GPFSEL1;
-    ra &= ~((7 << 12) | (7 << 15));  // Clear GPIO 14 und 15
-    ra |= (4 << 12) | (4 << 15);     // ALT0 für beide
-    *GPFSEL1 = ra;
-
-    // 3. Pull-up/down disable
-    *GPPUD = 0;
-    delay(150);
-    *GPPUDCLK0 = (1 << 14) | (1 << 15);
-    delay(150);
-    *GPPUDCLK0 = 0;
-
-    // 4. Clear interrupts
-    *UART0_ICR = 0x7FF;
-
-    // 5. Baudrate: 115200 @ 48MHz
-    *UART0_IBRD = 26;
-    *UART0_FBRD = 3;
-
-    // 6. Line Control: 8N1
-    *UART0_LCRH = (3 << 5);
-
-    // 7. Enable UART
-    *UART0_CR = (1 << 0) | (1 << 8) | (1 << 9);
-}
-
-void uart0_putc(char c) {
-    while (*UART0_FR & UART_FR_TXFF);
-    *UART0_DR = c;
-}
-
-void uart0_puts(const char *str) {
-    while (*str) {
-        if (*str == '\n') uart0_putc('\r');
-        uart0_putc(*str++);
-    }
-}
+/*============================================================================
+ * Hauptprogramm
+ *============================================================================*/
 
 void main(void) {
-    uart0_init();
-
-    uart0_puts("\n\n========================================\n");
-    uart0_puts("*** RPi3 AMP - Core 3 Bare-Metal ***\n");
-    uart0_puts("========================================\n");
-    uart0_puts("Running at: 0x20000000 (AMP Reserved)\n");
-    uart0_puts("UART0: GPIO 14/15 (Pins 8/10)\n");
-    uart0_puts("Core 3 successfully started!\n");
-    uart0_puts("========================================\n\n");
-
-    unsigned int counter = 0;
-    while(1) {
-        uart0_puts("Message #");
-        // Simple number output
-        char buf[16];
-        int i = 0;
-        unsigned int n = counter;
-        if (n == 0) buf[i++] = '0';
-        else {
-            char tmp[16];
-            int j = 0;
-            while (n > 0) {
-                tmp[j++] = '0' + (n % 10);
-                n /= 10;
-            }
-            while (j > 0) buf[i++] = tmp[--j];
+    uint32_t heartbeat_count = 0;
+    uint64_t last_heartbeat = 0;
+    uint32_t core_id;
+    
+    /* UART initialisieren */
+    uart_init();
+    
+    /* Banner */
+    print_banner();
+    
+    uart_puts("Initializing Core 3...\n\n");
+    
+    /* Core ID prüfen */
+    core_id = get_core_id();
+    uart_printf("Core ID: %u\n", core_id);
+    
+    if (core_id != 3) {
+        uart_puts("WARNING: Not running on Core 3!\n");
+    }
+    
+    /* Boot Info */
+    uart_puts("\n");
+    uart_puts("╔════════════════════════════════════════╗\n");
+    uart_puts("║           BOOT INFORMATION             ║\n");
+    uart_puts("╠════════════════════════════════════════╣\n");
+    uart_puts("║ Load Address  : ");
+    uart_put_hex32(AMP_CODE_BASE);
+    uart_puts("\n");
+    uart_printf("║ FW Version    : %u.%u.%u\n", 
+                (FIRMWARE_VERSION >> 16) & 0xFF,
+                (FIRMWARE_VERSION >> 8) & 0xFF,
+                FIRMWARE_VERSION & 0xFF);
+    uart_puts("║ Build Date    : " __DATE__ " " __TIME__ "\n");
+    uart_puts("╚════════════════════════════════════════╝\n");
+    
+    /* Shared Memory initialisieren */
+    uart_puts("\nInitializing shared memory...\n");
+    shared_status_t *status = shared_mem_init();
+    
+    if (status && status->magic == FIRMWARE_MAGIC) {
+        uart_puts("OK: Shared memory initialized at ");
+        uart_put_hex32(SHARED_STATUS_ADDR);
+        uart_puts("\n");
+        uart_puts("Magic: ");
+        uart_put_hex32(status->magic);
+        uart_puts(" (valid)\n");
+        uart_printf("Boot count: %u\n", status->boot_count);
+    } else {
+        uart_puts("ERROR: Failed to initialize shared memory!\n");
+    }
+    
+    /* Memory Test überspringen für jetzt */
+    uart_puts("\nSkipping memory test for now.\n");
+    
+    /* Status setzen */
+    shared_mem_set_state(CORE3_STATE_RUNNING);
+    shared_mem_set_debug("Core 3 running OK");
+    
+    uart_puts("\n");
+    uart_puts("════════════════════════════════════════════════════════════════\n");
+    uart_puts("  STARTUP COMPLETE - Entering main loop\n");
+    uart_printf("  Heartbeat interval: %u ms\n", HEARTBEAT_INTERVAL_MS);
+    uart_puts("  Linux can read status from: 0x20A00000\n");
+    uart_puts("════════════════════════════════════════════════════════════════\n");
+    
+    /* Hauptschleife */
+    while (1) {
+        uint64_t now = timer_get_ticks();
+        
+        /* Heartbeat */
+        if ((now - last_heartbeat) >= (HEARTBEAT_INTERVAL_MS * 1000ULL)) {
+            last_heartbeat = now;
+            heartbeat_count++;
+            
+            /* Shared Memory aktualisieren */
+            shared_mem_heartbeat();
+            
+            /* Ausgabe */
+            print_heartbeat(heartbeat_count);
         }
-        buf[i] = '\0';
-        uart0_puts(buf);
-        uart0_puts("\n");
-
-        counter++;
-        delay(1000000);
+        
+        /* Kurze Pause - KEIN wfe, das verursacht Crash! */
+        for (volatile int i = 0; i < 10000; i++) {
+            asm volatile("nop");
+        }
     }
 }
