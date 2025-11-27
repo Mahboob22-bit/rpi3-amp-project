@@ -293,6 +293,25 @@ reserved-memory {
 maxcpus=3 mem=512M
 ```
 
+## ⚠️ remoteproc auf Raspberry Pi - NICHT VERFÜGBAR!
+
+**Recherchiert am 2025-11-26 - Nicht nochmal darauf reinfallen!**
+
+| Frage | Antwort |
+|-------|---------|
+| Ist remoteproc auf RPi OS aktiviert? | **NEIN** - nicht kompiliert |
+| Verwendet TImada remoteproc? | **NEIN** - Userspace libmetal/OpenAMP |
+| Kann man Core 3 FW ohne Reboot laden? | **NEIN** - U-Boot lädt beim Boot |
+| Lohnt sich remoteproc zu portieren? | **NEIN** - zu aufwändig |
+
+**TImada's Architektur:** Userspace-Bibliotheken (libmetal + libopen_amp) kommunizieren via `/dev/mem` mit Shared Memory. Kein Kernel-Modul!
+
+**Für Hot-Reload:** Eigenes Kernel-Modul wäre nötig → Aufwand nicht gerechtfertigt.
+
+**Pragmatische Lösung:** Reboot-Workflow oder Soft-Reset über Shared Memory.
+
+---
+
 ## Mailbox System
 
 **Two Different Mailbox Systems - Don't Confuse Them:**
