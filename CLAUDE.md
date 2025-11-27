@@ -20,6 +20,30 @@ This is a **Raspberry Pi 3 AMP (Asymmetric Multiprocessing) project** - a port o
        └──────────── OpenAMP/RPMsg ──────────────┘
 ```
 
+## 🎯 Projekt-Philosophie: Lernen steht im Vordergrund!
+
+**WICHTIG:** Das oberste Ziel dieses Projekts ist **nicht** ein funktionierendes System, sondern **tiefes Verständnis**.
+
+**Lernziele:**
+1. Das gesamte AMP-Setup so gut verstehen, dass es **auf einem anderen System reproduziert** werden kann
+2. Unterscheiden können zwischen:
+   - **Generisch** (gilt für alle ARM64 AMP-Projekte)
+   - **RPi3-spezifisch** (BCM2837 Eigenheiten)
+   - **Projekt-spezifisch** (unsere Entscheidungen)
+3. Bei jedem Schritt verstehen: **Was, Warum, und Wie**
+
+**Für Claude/AI-Assistenten:**
+- Erkläre bei jedem Schritt die Hintergründe
+- Zeige auf, was nachgeschlagen wird und warum
+- Unterscheide explizit zwischen generischen und spezifischen Konzepten
+- Bevorzuge "gemeinsam erarbeiten" statt "fertige Lösung liefern"
+- Der Benutzer sollte jeden Schritt selbst durchführen können
+
+**Dokumentation:**
+- Jede wichtige Entscheidung dokumentieren (warum so und nicht anders)
+- Code mit ausführlichen Kommentaren versehen
+- Referenzen zu Datenblättern/Dokumentation angeben
+
 ## Current Status (Last Updated: 2025-11-26)
 
 **✅ PHASE 4 IN PROGRESS - Shared Memory IPC Working!**
